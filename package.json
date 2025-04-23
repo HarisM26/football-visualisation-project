@@ -11,5 +11,8 @@
   "dependencies": {
     "d3": "^7.9.0",
     "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "wrangler": "^4.13.0"
   }
 }
