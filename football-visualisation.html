@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>PPG Heatmap &amp; Mini Chart &amp; Dumbell Plot</title>
+    <script src="node_modules/d3/dist/d3.min.js"></script>
+    <!-- Data used in this visualisation was sourced from the coursework provided dataset and scraped data from understat stored in a json file -->
+    <style>
+        body {
+            font-family: sans-serif;
+            flex-direction: column;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            /* align-items: flex-start */;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f5f5f5;
+        }
+
+        /* Left sidebar */
+        #controls {
+            flex: none;
+            width: 220px;
+            margin-right: 20px;
+            border-right: 1px solid #ccc;
+        }
+        #controls h4 {
+            margin: 8px;
+            top: 0;
+            z-index: 10;
+        }
+        #team-list {
+            max-height: calc(100vh - 60px);
+            overflow-y: auto;
+            padding: 0 8px;
+        }
+        .team label {
+            margin-left: 4px;
+            cursor: pointer;
+        }
+
+        /* Heatmap and mini charts */
+        #chart-box {
+            flex: none;
+            width: 900px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .legend text {
+            font-size: 12px;
+            fill: #333;
+        }
+        .axis path, .axis line {
+            fill: none;
+            shape-rendering: crispEdges;
+        }
+        .axis text {
+            font-size: 12px;
+        }
+
+        /* Big6 toggle button */ 
+        #big6-toggle { 
+            margin: 10px 0;
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+
+        /* Order dropdown */
+        #order-box {
+            position: absolute;
+            top: 30px;
+            right: 20px;
+        }
+        #order-box label {
+            font-weight: bold;
+            margin-right: 4px;
+        }
+
+        #heatmap-section {
+            display: flex;
+            max-width: 1420px; 
+            width: 100%; 
+        }
+
+        #multiples-section {
+            flex: none;
+            width: 300px; 
+            margin-left: 20px;  
+            z-index: 1;
+        }
+
+        .mini-section-title {
+            margin: 0 0 8px;
+            padding: 4px 0; 
+            font-size: 14px; 
+            text-align: center; 
+            border-bottom: 1px solid #ddd; 
+            background: #f5f5f5;
+            position: sticky; 
+            top: 0;
+            z-index: 10;
+        }
+
+        #mini-charts-container {
+            position: relative;
+            flex: none;  
+            width: 300px; 
+            margin-left: 20px;
+            height: 700px;                
+            overflow-y: auto;            
+            overflow-x: hidden;         
+            background: #f5f5f5;      
+            /* background: white;    */
+            border-left: 1px solid #ddd;
+            padding: 7px;                
+        }
+
+        /* each mini‐chart */
+        .mini-chart {
+            box-sizing: border-box;   
+            width: 100%;
+            height: 120px; 
+            margin-bottom: 12px; 
+            background: white;
+            border: 2px solid transparent;    
+            transition: border-color 0.2s ease; 
+        }
+
+        .mini-chart:hover {
+            border-color: lightblue;    
+        } 
+
+        .mini-chart.focused {
+            border-color: #4287f5;
+        }
+
+        #toggle-bar {
+            display: flex;
+            align-items: center;
+            gap: 1rem;      
+            margin: 8px 0;  
+        } 
+        #toggle-bar label {
+            cursor: pointer;
+        } 
+         
+        #toggle-bar input {
+            margin-right: 4px;
+        }
+
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            font-size: 14px;
+        } 
+
+        /* the little coloured lines */
+        .swatch {
+            display: inline-block;
+            width: 4px;            
+            height: 16px;          
+            margin-right: 6px;
+            border-left: transparent; 
+        }
+
+        .relegated-swatch   { background: red;    }
+        .champs-swatch      { background: purple; }
+        .europa-swatch      { background: darkorange; } 
+        .conference-swatch  { background: darkgreen;  } 
+        .cell.relegated   { stroke: red;    stroke-width:3px; } 
+        .cell.champions   { stroke: purple; stroke-width:3px; }  
+        .cell.europa      { stroke: darkorange; stroke-width:3px; }
+        .cell.conference  { stroke: darkgreen;  stroke-width:3px; }
+
+        .legend-item input {
+            margin: 0 6px 0 0;
+        } 
+        .tooltip {
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 8px;
+            pointer-events: none;
+            font-size: 12px;
+            text-align: left;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            line-height: 1.3;
+            transform-origin: top left;
+            transform: scale(0.8);
+            opacity: 0;
+            transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+            z-index: 3;
+        }
+        .tooltip.show {
+            transform: scale(1);
+            opacity: 1;
+        }
+        .tooltip-header {
+            font-weight: bold;
+            margin-bottom: 6px;
+        }
+        .tooltip-separator {
+            border: none;
+            border-top: 1px solid #333;
+            margin: 4px 0 6px;
+        }
+        .tooltip-body {
+            display: table;
+        }
+        .tooltip-row {
+            display: table-row;
+            line-height: 1.3em;
+            margin: 2px 0;
+        }
+        .tooltip-cell.label {
+            display: table-cell;
+            text-align: right;
+            padding-right: 8px;
+            color: #999;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+        .tooltip-cell.value {
+            display: table-cell;
+            text-align: left;
+            padding-left: 8px;
+            font-weight: 600;
+            font-size: 12px;
+        }
+        .tooltip-winrate-title {
+            text-align: center;
+            font-size: 12px;
+            font-weight: bold;
+            margin: 6px 0 4px;
+        }
+
+        .cell {
+            stroke: #eee;
+            stroke-width: 1px;
+        }
+
+        #dumbell-wrapper {
+            width: 100%;
+            max-width: 1420px;
+            width:100%;
+            display:flex;
+            gap:2rem;
+            margin:2rem 0;
+        }
+        .dumbell-plots-box {
+            flex: 1;
+            background: #f5f5f5;
+            border: 1px solid #ddd;
+            padding: 1rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .dumbell-plots-box h3 {
+            margin-top: 0;
+            margin-bottom: 0.5rem; 
+        }
+
+        .dumbell-plots-box label {
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        .dumbell-plots-box select {
+            margin-left: 0.5rem;
+        }
+
+        .dumbell-plots-box svg {
+            background-color: #f5f5f5;
+        }
+
+        .dumbell-legend {
+            font-size: 12px;
+            margin-top: 8px;
+            display: flex;
+            gap: 1.5rem;
+        }
+        .dumbell-legend-item {
+            display: flex;
+            align-items: center;
+        }
+        .dumbell-legend-swatch {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 4px;
+        }
+
+
+    </style>
+</head>
+<body>
+
+<div id="heatmap-section">
+    <div id="controls">
+        <h4>Show teams:</h4>
+        <div id="team-list"></div>
+    </div>
+    <div id="chart-box">
+        <div id="order-box">
+            <label for="order-select">Order teams by:</label>
+            <select id="order-select">
+                <option value="alpha">Alphabetical</option>
+                <option value="avg">Average PPG</option>
+            </select>
+        </div>
+
+        <svg id="heatmap" width="900" height="650"></svg>
+        <div id="tooltip" class="tooltip"></div>
+
+        <div id="toggle-bar">
+            <button id="big6-toggle">Show Big 6 Only</button>
+
+            <label for="relegated-toggle" class="legend-item">
+                <span class="swatch relegated-swatch"></span>
+                <input type="checkbox" id="relegated-toggle" style="margin-right: 4px;"/>
+                Outline Relegated
+            </label>
+
+            <label for="champs-toggle" class="legend-item">
+                <span class="swatch champs-swatch"></span>
+                <input type="checkbox" id="champs-toggle" /> Champions League Qualified
+            </label>
+
+            <label for="europa-toggle" class="legend-item">
+                <span class="swatch europa-swatch"></span>
+                <input type="checkbox" id="europa-toggle" /> Europa League Qualified
+            </label>
+
+            <label for="conf-toggle" class="legend-item">
+                <span class="swatch conference-swatch"></span>
+                <input type="checkbox" id="conf-toggle" /> Conference League Qualified
+            </label>
+        </div>
+    </div>
+
+    <div id="multiples-section">
+        <div id="mini-charts-container">
+            <h4 class="mini-section-title">Season PPG Trends</h4>
+        </div>
+    </div>
+</div>
+
+<div id="dumbell-tooltip" class="tooltip"></div>
+<div id="dumbell-wrapper">
+    <div class="dumbell-plots-box">
+        <h3>Expected vs Actual Goals (xG vs Goals)</h3>
+        <label for="dumbell-season-1">
+            <strong>Select Season:</strong>
+            <select id="dumbell-season-1"></select>
+        </label>
+        <svg id="dumbell-goals" width="100%" height="400"></svg>
+        <div class="dumbell-legend">
+            <div class="dumbell-legend-item">
+                <span class="dumbell-legend-swatch" style="background:#999"></span>
+                xG
+            </div>
+            <div class="dumbell-legend-item">
+                <span class="dumbell-legend-swatch" style="background:#2ca02c"></span>
+                Overperformance (Actual ≥ Expected)
+            </div>
+            <div class="dumbell-legend-item">
+                <span class="dumbell-legend-swatch" style="background:#d62728"></span>
+                Underperformance (Actual &lt; Expected)
+            </div>
+        </div>
+    </div> 
+    <div class="dumbell-plots-box">
+        <h3>Expected vs Actual Assists (xA vs Assists)</h3>
+        <label for="dumbell-season-2">
+            <strong>Select Season:</strong>
+            <select id="dumbell-season-2"></select>
+        </label>
+        <svg id="dumbell-assists" width="100%" height="400"></svg>
+        <div class="dumbell-legend">
+            <div class="dumbell-legend-item">
+                <span class="dumbell-legend-swatch" style="background:#999"></span>
+                xA
+            </div>
+            <div class="dumbell-legend-item">
+                <span class="dumbell-legend-swatch" style="background:#2ca02c"></span>
+                Overperformance (Actual ≥ Expected)
+            </div>
+            <div class="dumbell-legend-item">
+                <span class="dumbell-legend-swatch" style="background:#d62728"></span>
+                Underperformance (Actual &lt; Expected)
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function scrollMiniChartToMiddle(team) {
+        const node = d3.selectAll("svg.mini-chart")
+            .filter(d => d === team)
+            .node();
+        if (node) {
+            node.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+    }
+
+    d3.csv("pl-tables-1993-2024.csv").then(data => {
+        const years = d3.range(2014, 2025);
+
+        // calculate the points per game and other stats
+        const recent = data
+            .filter(d => +d.season_end_year >= 2014 && +d.season_end_year <= 2024)
+            .map(d => ({
+                team: d.team,
+                year: +d.season_end_year,
+                position: +d.position,
+                ppg: +d.points / +d.played,
+                win_ratio: +d.won / +d.played,
+                played: +d.played,
+                note: d.notes
+            }));
+
+        // group the data by team and year
+        const nested = d3.groups(recent, d => d.team)
+            .map(([team, vals]) => {
+                const values = years.map(y => {
+                    const rec = vals.find(r => r.year === y);
+                    return {
+                        year: y,
+                        position: rec ? rec.position : 0,
+                        ppg: rec ? rec.ppg : 0,
+                        win_ratio: rec ? rec.win_ratio : 0,
+                        played: rec ? rec.played : 0,
+                        note: rec ? rec.note : ""
+                    };
+                });
+                return { team, values, avg: d3.mean(values, v => v.ppg) };
+            });
+
+        const allPPG = recent.map(d => d.ppg);
+        const maxPPG = d3.max(allPPG);
+        const colorScale = d3.scaleSequential(d3.interpolateBlues)
+            .domain([0, maxPPG]);
+
+        // for the toggle button
+        const big6 = new Set([
+            "Manchester Utd",
+            "Manchester City",
+            "Liverpool",
+            "Chelsea",
+            "Arsenal",
+            "Tottenham"
+        ]);
+
+        // make team picker checkboxes
+        const teamList = d3.select("#team-list");
+        teamList.selectAll("div.team")
+            .data(nested.sort((a,b)=>d3.ascending(a.team,b.team)))
+            .join("div")
+            .attr("class","team")
+            .each(function(d,i) {
+                const id = `chk-${i}`;
+                d3.select(this).append("input")
+                    .attr("type","checkbox")
+                    .attr("id", id)
+                    .attr("value", d.team)
+                    .property("checked", true);
+                d3.select(this).append("label")
+                    .attr("for", id)
+                    .text(d.team);
+            });
+
+        // make heatmap svg
+        const svg = d3.select("#heatmap");
+        const W = +svg.attr("width"), H = +svg.attr("height");
+        const margin = { top: 70, right: 20, bottom: 40, left: 120 };
+        const innerW = W - margin.left - margin.right;
+        const innerH = H - margin.top - margin.bottom;
+
+        const xScale = d3.scaleBand()
+            .domain(years)
+            .range([margin.left, margin.left+innerW])
+            .padding(0.05);
+            
+        const yScale = d3.scaleBand()
+            .range([margin.top, margin.top+innerH])
+            .padding(0.05);
+
+        svg.append("g")
+            .attr("class", "x axis")
+            .attr("transform", `translate(0,${margin.top + innerH})`);
+        svg.append("g")
+            .attr("class", "y axis")
+            .attr("transform", `translate(${margin.left}, 0)`);
+
+        // todo; make dumbell plots linked with highlights
+        const highlightRow = svg.append("rect")
+            .attr("class", "highlight-row")
+            .style("fill", "#ffa600")
+            .style("opacity", 0.4)
+            .style("pointer-events", "none")
+            .style("display", "none");
+
+        const highlightCol = svg.append("rect")
+            .attr("class", "highlight-col")
+            .style("fill", "#ffa600")
+            .style("opacity", 0.4)
+            .style("pointer-events", "none")
+            .style("display", "none");
+
+        // tooltipssssss
+        const container = d3.select("#chart-box").node();
+        const heatmapTooltip = d3.select("#tooltip");
+        const dumbellPlotTooltip = d3.select("#dumbell-tooltip");
+
+        // legend gradient
+        const legendWidth = 300, legendHeight = 10;
+        const defs = svg.append("defs");
+        const grad = defs.append("linearGradient")
+            .attr("id","ppg-gradient")
+            .attr("x1","0%").attr("y1","0%")
+            .attr("x2","100%").attr("y2","0%");
+            
+        d3.range(10).forEach(i => {
+            grad.append("stop")
+                .attr("offset",`${(i/9)*100}%`)
+                .attr("stop-color", colorScale((i/9)*maxPPG));
+        });
+
+        const legend = svg.append("g")
+            .attr("class","legend")
+            .attr("transform", `translate(${margin.left},${margin.top-40})`);
+
+        legend.append("rect")
+            .attr("width", legendWidth)
+            .attr("height", legendHeight)
+            .style("fill","url(#ppg-gradient)")
+            .style("stroke","#ccc");
+
+        const legendScale = d3.scaleLinear()
+            .domain([0, maxPPG])
+            .range([0, legendWidth]);
+
+        legend.append("g")
+            .attr("transform", `translate(0,${legendHeight})`)
+            .call(d3.axisBottom(legendScale)
+                .ticks(5)
+                .tickFormat(d3.format(".2f")));
+
+        legend.append("text")
+            .attr("x",0).attr("y",-6)
+            .text("Points Per Game (PPG) →")
+            .attr("fill","#333")
+            .attr("font-size","12px");
+
+        let big6Only = false;
+        d3.select("#big6-toggle").on("click", function() {
+            big6Only = !big6Only;
+            this.textContent = big6Only
+                ? "Show All Teams"
+                : "Show Big 6 Only";
+            teamList.selectAll("input")
+                .property("checked", d => big6Only
+                    ? big6.has(d.team)
+                    : true
+                );
+            update();
+        });
+
+        // stores team that is clicked on
+        let focusedTeam = null;
+
+        // make cells pop out when mouse hovered over
+        function popCells(team) {
+            const POP = 4;
+            svg.selectAll("rect.cell")
+                .filter(d=>d.team===team).raise()
+                .transition().duration(150)
+                .attr("x",      d=>xScale(d.year)-POP/2)
+                .attr("y",      d=>yScale(d.team)-POP/2)
+                .attr("width",  xScale.bandwidth()+POP)
+                .attr("height", yScale.bandwidth()+POP);
+        }
+
+        // row of cells popped out go back to normal size
+        function resetCells(team) {
+            svg.selectAll("rect.cell")
+                .filter(d => d.team === team)
+                .transition()
+                .duration(150)
+                .attr("x",      d => xScale(d.year))
+                .attr("y",      d => yScale(d.team))
+                .attr("width",  xScale.bandwidth())
+                .attr("height", yScale.bandwidth());
+        }
+
+        function focusTeam(team) {
+            focusedTeam = team;
+            popCells(team);
+            svg.selectAll("rect.cell")
+                .filter(d=>d.team!==team)
+                .style("opacity", 0.2);
+
+            d3.selectAll("#mini-charts-container svg.mini-chart")
+                .classed("focused", d => d === team)
+        }
+
+        // make cells back to normal 
+        function clearFocus() {
+            d3.selectAll("#mini-charts-container svg.mini-chart")
+                .classed("focused", false);
+            const prev = focusedTeam;
+            focusedTeam = null;
+            if (prev) resetCells(prev);
+            svg.selectAll("rect.cell")
+                .style("opacity", 1);
+            heatmapTooltip.classed("show", false);
+            highlightRow.style("display", "none");
+            highlightCol.style("display", "none");
+        }
+
+        window.addEventListener("click", e => {
+            if (!e.target.closest("rect.cell")) clearFocus();
+        });
+
+        function showTooltipAndHighlights(e,d) {
+            heatmapTooltip.html("");  // clear
+            const yStep = yScale.step();
+            const xStep = xScale.step();
+
+            // make tooltip
+            heatmapTooltip.append("div")
+                .attr("class","tooltip-header")
+                .html(`${d.team} (${d.year-1}/${String(d.year).slice(-2)})`);
+
+            heatmapTooltip.append("hr")
+                .attr("class","tooltip-separator");
+
+            const body = heatmapTooltip.append("div")
+                .attr("class","tooltip-body");
+
+            [
+                ["Final Position",   d.position],
+                ["Points Per Game",      d.ppg.toFixed(2)]
+            ].forEach(([label, val]) => {
+                const row = body.append("div")
+                    .attr("class","tooltip-row");
+                row.append("div")
+                    .attr("class","tooltip-cell label")
+                    .text(label + ":");
+                row.append("div")
+                    .attr("class","tooltip-cell value")
+                    .text(val);
+            });
+
+            heatmapTooltip.append("div")
+                .attr("class","tooltip-winrate-title")
+                .text("Win Rate");
+
+            const size = 80,
+                radius = 35,
+                circumference = 2*Math.PI*radius;
+
+            const svgTip = heatmapTooltip.append("svg")
+                .attr("width", size)
+                .attr("height", size)
+                .style("display","block")
+                .style("margin","0 auto");
+
+            // grey background circle
+            svgTip.append("circle")
+                .attr("cx", size/2)
+                .attr("cy", size/2)
+                .attr("r", radius)
+                .attr("fill", "none")
+                .attr("stroke", "#eee")
+                .attr("stroke-width", 6);
+
+            // animated green arc
+            const arc = svgTip.append("circle")
+                .attr("cx", size/2)
+                .attr("cy", size/2)
+                .attr("r", radius)
+                .attr("fill", "none")
+                .attr("stroke", "green")
+                .attr("stroke-width", 6)
+                .attr("transform", `rotate(-90,${size/2},${size/2})`)
+                .attr("stroke-dasharray", `0,${circumference}`);
+
+            arc.transition()
+                .duration(800)
+                .attrTween("stroke-dasharray", () => {
+                    const target = circumference * d.win_ratio;
+                    return t => `${target * t},${circumference}`;
+                });
+
+            svgTip.append("text")
+                .attr("x", size/2)
+                .attr("y", size/2 + 5)     
+                .attr("text-anchor", "middle")
+                .attr("font-size", "14px")
+                .attr("fill", "#333")
+                .text(`${Math.round(d.win_ratio * 100)}%`);
+
+            const [mx, my] = d3.pointer(e, container);
+            heatmapTooltip
+                .style("left",  (mx + 10) + "px")
+                .style("top",   (my + 10) + "px")
+                .style("display","block");
+
+            // highlights that follow the mouse in the heatmap
+            highlightRow
+                .attr("x", margin.left)
+                .attr("y", yScale(d.team) - (yStep - yScale.bandwidth())/2)
+                .attr("width", innerW)
+                .attr("height", yStep+5)
+                .style("display", "block");
+
+            highlightCol
+                .attr("x", xScale(d.year) - (xStep - xScale.bandwidth())/2)
+                .attr("y", margin.top)
+                .attr("width", xStep+2)
+                .attr("height", innerH+3)
+                .style("display", "block");
+
+            heatmapTooltip.classed("show", true);
+        }
+
+        function hideTooltipAndHighlights() {
+            heatmapTooltip.classed("show", false);
+            highlightRow.style("display","none");
+            highlightCol.style("display","none");
+        }
+
+        function update() {
+            const selected = new Set();
+
+            // add selected teams to set
+            teamList.selectAll("input:checked").each(function() {
+                selected.add(this.value);
+            });
+
+            const order = d3.select("#order-select").property("value");
+
+            // order alphabetically or average Points Per Game
+            let rows = nested.filter(d => selected.has(d.team));
+            if (order === "alpha") {
+                rows.sort((a,b)=>d3.ascending(a.team,b.team));
+            } else {
+                rows.sort((a,b)=>d3.descending(a.avg,b.avg));
+            }
+
+            yScale.domain(rows.map(d=>d.team));
+
+            svg.select(".x.axis")
+                .call(d3.axisBottom(xScale).tickFormat(d3.format("d")));
+            svg.select(".y.axis")
+                .call(d3.axisLeft(yScale));
+            
+            // flatten team data for heatamap
+            const flat = rows.flatMap(d=>
+                d.values.map(v=>({
+                    team:d.team,
+                    year:v.year,
+                    position: v.position,
+                    ppg:v.ppg,
+                    win_ratio: v.win_ratio,
+                    note: v.note
+                }))
+            );
+
+
+            // make cells
+            const cells = svg.selectAll("rect.cell")
+                .data(flat, d=>d.team+"|"+d.year);
+
+            cells.exit().remove();
+
+            const allCells = cells.enter()
+                .append("rect")
+                .attr("class","cell")
+                .merge(cells)
+                .attr("x",      d => xScale(d.year))
+                .attr("y",      d => yScale(d.team))
+                .attr("width",  xScale.bandwidth())
+                .attr("height", yScale.bandwidth())
+                .attr("fill",   d => colorScale(d.ppg))
+
+            const outlineRelegated = d3.select("#relegated-toggle").property("checked");
+            const outlineChamps = d3.select("#champs-toggle").property("checked");
+            const outlineEuropa = d3.select("#europa-toggle").property("checked");
+            const outlineConference = d3.select("#conf-toggle").property("checked");
+
+            allCells
+                .classed("relegated", d => outlineRelegated && d.note === "Relegated")
+                .classed("champions",  d => outlineChamps     && d.note && d.note.startsWith("→ Champions League"))
+                .classed("europa",     d => outlineEuropa     && d.note && d.note.startsWith("→ Europa League"))
+                .classed("conference", d => outlineConference && d.note && d.note.startsWith("→ Europa Conference League"))
+                .on("click", (e, d) => {
+                    e.stopPropagation();
+                    if (!focusedTeam) {
+                        focusTeam(d.team);
+                        scrollMiniChartToMiddle(d.team);
+                    }
+                    else {
+                        clearFocus();
+                    }
+                })
+                .on("mouseover", (e, d) => {
+                    if (!focusedTeam) {
+                        popCells(d.team);
+                        showTooltipAndHighlights(e,d);
+                    }
+                    else if (d.team === focusedTeam) {
+                        showTooltipAndHighlights(e, d);
+                    }
+                })
+                .on("mousemove", (e, d) => {
+                    if (!focusedTeam || d.team === focusedTeam) {
+                        const [mx, my] = d3.pointer(e, container);
+                        heatmapTooltip
+                            .style("left",  (mx + 10) + "px")
+                            .style("top",   (my + 10) + "px");
+                    }
+                })
+                .on("mouseout", (e, d) =>{
+                    if (!focusedTeam) {
+                        resetCells(d.team);
+                        hideTooltipAndHighlights();
+                    }
+                });
+
+            // making mini charts
+            const selectedTeams = rows.map(d => d.team);
+
+            const miniBox = d3.select("#mini-charts-container")
+                .selectAll("svg.mini-chart")
+                .data(selectedTeams, d => d);
+
+            miniBox.exit().remove();
+
+            const miniNewSVGs = miniBox.enter()
+                .append("svg")
+                .attr("class","mini-chart");
+
+            const miniMerge = miniNewSVGs.merge(miniBox)
+                .order();
+
+            miniMerge
+                .on("click", function(event, team) {
+                    event.stopPropagation();
+
+                    if (!focusedTeam) {
+                        focusTeam(team);
+                        scrollMiniChartToMiddle(team);
+                    } else if (focusedTeam === team) {
+                        clearFocus();
+                    } else {
+                        clearFocus();
+                        focusTeam(team);
+                        scrollMiniChartToMiddle(team);
+                    }
+                })
+                .on("mouseout", function(event, team) {
+                    if (!focusedTeam) {
+                        resetCells(team);
+                    }
+                })
+                .on("mouseover", function(event, team) {
+                    if (!focusedTeam) {
+                        popCells(team);
+                    }
+                });
+
+            miniMerge.each(function(team) {
+                const svg = d3.select(this);
+                svg.selectAll("*").remove();  
+
+                const teamValues = nested.find(n => n.team === team).values;
+
+                const x = d3.scaleLinear()
+                    .domain(d3.extent(years))
+                    .range([30, this.clientWidth - 10]);
+                const y = d3.scaleLinear()
+                    .domain([0, maxPPG])
+                    .range([this.clientHeight - 20, 10]);
+
+                if (teamValues.some(d => d.ppg > 0)) {
+                    const filtered = teamValues.filter(d => d.ppg > 0);
+                    const line = d3.line()
+                        .x(d => x(d.year))
+                        .y(d => y(d.ppg));
+                    svg.append("path")
+                        .datum(filtered)
+                        .attr("d", line)
+                        .attr("fill", "none")
+                        .attr("stroke", "#333")
+                        .attr("stroke-width", 1.5);
+                }
+
+                svg.append("text")
+                    .attr("x", 5).attr("y", this.clientHeight - 5)
+                    .attr("font-size", "10px")
+                    .text(team);
+
+                const logoSize = 24;      
+
+                const fileName = team.replace(/\s+/g, "_") + ".png";
+
+                svg.append("image")
+                    // logos sourced from wikipedia
+                    .attr("href", `logos/${fileName}`)
+                    .attr("x", 5)
+                    .attr("y", this.clientHeight - logoSize - 20)
+                    .attr("width",  logoSize)
+                    .attr("height", logoSize);
+            });
+        }
+
+        teamList.selectAll("input").on("change", update);
+        d3.select("#order-select").on("change", update);
+        d3.select("#relegated-toggle").on("change", update);
+        d3.select("#champs-toggle").on("change", update);
+        d3.select("#europa-toggle").on("change", update);
+        d3.select("#conf-toggle").on("change", update);
+        update();
+
+        // data sourced from understat and processed into json file
+        d3.json("understat-epl-totals-2014-24.json").then(totals => {
+            const seasons = d3.range(2014, 2024);
+
+            const selectGoalsSeason = d3.select("#dumbell-season-1");
+
+            selectGoalsSeason
+                .selectAll("option")
+                .data(seasons)  
+                .join("option")
+                .attr("value", d => d) 
+                .text(d => `${d}/${String(d+1).slice(-2)}`)
+                .property("selected", (_,i) => i === 0);
+            const selectAssistsSeason = d3.select("#dumbell-season-2");
+
+            selectAssistsSeason
+                .selectAll("option")
+                .data(seasons)
+                .join("option")
+                .attr("value", d => d)
+                .text(d => `${d}/${String(d+1).slice(-2)}`)
+                .property("selected", (_,i) => i === 0);
+
+            const dumbellMargin = { top: 20, right: 20, bottom: 30, left: 100 };
+
+            function drawDumbellPlot(svgId, expKey, actKey, dropdown) {
+                const seasonStart = +dropdown.property("value");
+                const seasonEnd = seasonStart + 1;
+
+                // get the data for the selected season
+                const data = totals.filter(d => d.season === seasonStart);
+                const teamsThisYear = new Set(data.map(d => d.team));
+
+                const posMap = new Map(
+                    nested 
+                        .filter(d => teamsThisYear.has(d.team))
+                        .map(d => {
+                            const teamValues = d.values.find(v => v.year === seasonEnd);
+
+                            return [d.team, teamValues ? teamValues.position : Infinity];
+                        })
+                );
+
+                // sort the teams by their position in the league
+                // if team not in league, don't show in plot
+                const order = Array.from(teamsThisYear)
+                    .sort((a,b) => d3.ascending(posMap.get(a), posMap.get(b)));
+
+
+                const svg = d3.select(svgId);
+                svg.selectAll("*").remove();
+                const W = svg.node().clientWidth;
+                const H = +svg.attr("height");
+                const innerW = W - dumbellMargin.left - dumbellMargin.right;
+                const innerH = H - dumbellMargin.top - dumbellMargin.bottom;
+
+                const y = d3.scaleBand()
+                    .domain(order)  
+                    .range([dumbellMargin.top, dumbellMargin.top + innerH])
+                    .padding(0.2);
+
+                // scale x-axis to max of expected or actual value
+                const xMax = d3.max(data, d => Math.max(d[expKey], d[actKey]));
+                const xAxis = d3.scaleLinear([0, xMax], [dumbellMargin.left, dumbellMargin.left + innerW]);
+
+                svg.append("g")
+                    .attr("transform", `translate(0,${dumbellMargin.top + innerH})`)
+                    .call(d3.axisBottom(xAxis));
+
+                const yAxisGroup = svg.append("g")
+                    .attr("transform", `translate(${dumbellMargin.left},0)`)
+                    .call( 
+                        d3.axisLeft(y)
+                            .tickSize(0)      
+                            .tickPadding(6)  
+                    );
+
+                yAxisGroup.select(".domain").remove();
+
+                svg.append("g")
+                    .attr("class", "grid-lines")
+                    .selectAll("line")
+                    .data(order)            
+                    .join("line")
+                    .attr("x1", dumbellMargin.left) 
+                    .attr("x2", dumbellMargin.left + innerW)
+                    .attr("y1", d => y(d) + y.bandwidth()/2)
+                    .attr("y2", d => y(d) + y.bandwidth()/2)
+                    .attr("stroke", "#999")
+                    .attr("stroke-dasharray", "2,2") 
+                    .attr("stroke-opacity", 0.1);
+
+                // connecting lines
+                const lines = svg.selectAll("line.dumbell-line")
+                    .data(data, d => d.team);
+
+                lines.exit().remove();
+
+                const linesEnter = lines.enter().append("line")
+                    .attr("class", "dumbell-line")
+                    // start both ends at the left axis
+                    .attr("x1", d => xAxis(0))
+                    .attr("x2", d => xAxis(0)) 
+                    .attr("y1", d => y(d.team) + y.bandwidth()/2)
+                    .attr("y2", d => y(d.team) + y.bandwidth()/2)
+                    .attr("stroke", "#999") 
+                    .attr("stroke-width", 0.7)
+                    .attr("stroke-opacity", 0.7); 
+
+                linesEnter.merge(lines)
+                    .transition().duration(800)
+                    .attr("x1", d => xAxis(d[expKey]))
+                    .attr("x2", d => xAxis(d[actKey]));
+
+                // xG dots
+                const expDots = svg.selectAll("circle.exp-dot")
+                    .data(data, d => d.team);
+
+                expDots.exit().remove();
+
+                const expEnter = expDots.enter().append("circle")
+                    .attr("class","exp-dot")
+                    .attr("cy", d => y(d.team) + y.bandwidth()/2)
+                    .attr("r", 5)
+                    .attr("fill", "#999")
+                    .attr("cx", d => xAxis(0));
+
+                expEnter.merge(expDots)
+                    .transition().duration(800)
+                    .attr("cx", d => xAxis(d[expKey]));
+ 
+                const actDots = svg.selectAll("circle.act-dot")
+                    .data(data, d => d.team);  
+
+                actDots.exit().remove();
+
+                const actEnter = actDots.enter().append("circle")
+                    .attr("class","act-dot") 
+                    .attr("cy", d => y(d.team) + y.bandwidth()/2)
+                    .attr("r", 5) 
+                    // colour by over/under performance   
+                    .attr("fill", d => d[actKey] >= d[expKey] ? "#2ca02c" : "#d62728") 
+                    .attr("cx", d => xAxis(0)); 
+
+                actEnter.merge(actDots)
+                    .transition().duration(800)
+                    .attr("cx", d => xAxis(d[actKey]));
+
+                // tooltip for dumbell plots
+                svg.selectAll("circle.exp-dot, circle.act-dot")
+                    .on("mouseover", (event, d) => {
+                        dumbellPlotTooltip.html("");
+
+                        dumbellPlotTooltip.append("div") 
+                            .attr("class", "tooltip-header") 
+                            .text(`${d.team} (${seasonStart}/${String(seasonStart+1).slice(-2)})`);
+                        dumbellPlotTooltip.append("hr").attr("class", "tooltip-separator");
+
+                        const body = dumbellPlotTooltip.append("div").attr("class", "tooltip-body");
+
+                        const expVal = d[expKey]; 
+                        let row = body.append("div").attr("class","tooltip-row");
+
+                        row.append("div") 
+                            .attr("class","tooltip-cell label" )
+                            .text(`${expKey}:`); 
+
+                        row.append("div")
+                            .attr("class","tooltip-cell value")
+                            .text(expVal.toFixed(2));
+
+
+                        const actVal = d[actKey];
+                        row = body.append("div").attr("class","tooltip-row");
+                        row.append("div")
+                            .attr("class","tooltip-cell label")
+                            .text(`Actual ${actKey}:`);
+                        row.append("div")
+                            .attr("class","tooltip-cell value")
+                            .text(actVal.toFixed(2));
+
+
+                        const diff = actVal - expVal;
+                        const diffColor = diff >= 0 ? "#2ca02c" : "#d62728";
+                        row = body.append("div").attr("class","tooltip-row");
+
+                        row.append("div")
+                            .attr("class","tooltip-cell label") 
+                            .text("Difference:"); 
+
+                        row.append("div") 
+                            .attr("class","tooltip-cell value")
+                            .style("color", diffColor) 
+                            .text(
+                                (diff > 0 ? "+" : "")
+                                + diff.toFixed(2)
+                            );
+
+                        dumbellPlotTooltip
+                            .style("left",  (event.pageX + 10) + "px") 
+                            .style("top",   (event.pageY + 10) + "px") 
+                            .classed("show", true); 
+                    })
+                    .on("mouseout", () => {
+                        dumbellPlotTooltip.classed("show", false);
+                    })
+                    .on("mousemove", event => {
+                        dumbellPlotTooltip
+                            .style("left",  (event.pageX + 10) + "px") 
+                            .style("top",   (event.pageY + 10) + "px");
+                    });
+
+
+            }
+
+            // if user changes drop-down selection then redraw the plots
+            selectGoalsSeason.on("change", () => drawDumbellPlot("#dumbell-goals", "xG", "goals", selectGoalsSeason));
+            selectAssistsSeason.on("change", () => drawDumbellPlot("#dumbell-assists", "xA", "assists", selectAssistsSeason));
+
+            drawDumbellPlot("#dumbell-goals", "xG", "goals", selectGoalsSeason);
+            drawDumbellPlot("#dumbell-assists","xA", "assists", selectAssistsSeason);
+        })
+            .catch(console.error);
+
+
+    }).catch(console.error);
+</script>
+</body>
+</html>
