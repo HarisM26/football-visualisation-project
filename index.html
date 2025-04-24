@@ -340,7 +340,7 @@
 
     <ul>
         <li>
-            <strong><a href="https://www.kaggle.com/datasets/evangower/english-premier-league-standings">Premier League Standings (1993–2024)</a></strong>
+            <strong><a href="https://www.kaggle.com/datasets/evangower/english-premier-league-standings" target="_blank">Premier League Standings (1993–2024)</a></strong>
             – Loaded directly into D3 via `d3.csv`, with all fields (season_end_year, played, points, won, position) type-cast to numbers. The code filtered the table to seasons 2014–2024, then for each record calculated:
             <ul>
                 <li><em>PPG</em> = points / games played</li>
@@ -349,7 +349,7 @@
             Teams were grouped by rows, expanded each team to a complete 2014–24 series (inserting zeros for missing years), and pre-computed each team’s average PPG for both the colour scale and the sort dropdown.
         </li>
         <li>
-            <strong><a href="https://understat.com/">xG, Goals &amp; xA, Assists Data (2014–2024)</a></strong>
+            <strong><a href="https://understat.com/" target="_blank">xG, Goals &amp; xA, Assists Data (2014–2024)</a></strong>
             – I created a Node.js script that fetched Understat’s EPL pages for each season (2014–23), extracted the embedded `teamsData` and each club’s `playersData` JSON blobs, then for each club summed every player’s goals, xG, assists and xA into per-team totals (rounded to two decimals).  Any leftover mismatches between Understat’s team names and the CSV were patched, and the final array was saved as a JSON file to be used by D3.
         </li>
 
