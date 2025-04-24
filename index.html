@@ -19,7 +19,7 @@
             background-color: #f5f5f5;
         }
 
-        .intro {
+        .data-processing {
             max-width: 1000px;       /* don’t let it go super wide */
             margin: 1.5rem auto;     /* center with breathing room */
             padding: 1.25rem 1.5rem; /* some nice padding */
@@ -29,26 +29,26 @@
             line-height: 1.6;         /* easier reading */
         }
 
-        .intro h2 {
+        .data-processing h2 {
             margin-top: 0;
             font-size: 1.5rem;
             color: #333;
         }
 
-        .intro ul {
+        .data-processing ul {
             margin: 0.75rem 0 1.25rem 1.25rem; /* indent bullets */
         }
 
-        .intro ul li {
+        .data-processing ul li {
             margin-bottom: 0.5rem;
         }
 
-        .intro a {
+        .data-processing a {
             color: #4287f5;
             text-decoration: none;
         }
 
-        .intro a:hover {
+        .data-processing a:hover {
             text-decoration: underline;
         }
 
@@ -333,31 +333,6 @@
     </style>
 </head>
 <body>
-<section class="intro">
-    <h2>Data Processing</h2>
-
-    <p>I used two primary sources to build these visualisations:</p>
-
-    <ul>
-        <li>
-            <strong><a href="https://www.kaggle.com/datasets/evangower/english-premier-league-standings" target="_blank">Premier League Standings (1993–2024)</a></strong>
-            – Loaded directly into D3 via `d3.csv`, with all fields (season_end_year, played, points, won, position) type-cast to numbers. The code filtered the table to seasons 2014–2024, then for each record calculated:
-            <ul>
-                <li><em>PPG</em> = points / games played</li>
-                <li><em>Win Ratio</em> = wins / games played</li>
-            </ul>
-            Teams were grouped by rows, each team expanded to a complete 2014–24 series (inserting zeros for missing years), and team’s average PPG calculated for both the colour scale and the sort dropdown.
-        </li>
-        <li>
-            <strong><a href="https://understat.com/" target="_blank">xG, Goals &amp; xA, Assists Data (2014–2024)</a></strong>
-            – I created a Node.js script that fetched Understat’s EPL pages for each season (2014–23), extracted the embedded `teamsData` and each club’s `playersData` JSON blobs, then for each club summed every player’s goals, xG, assists and xA into per-team totals (rounded to two decimals).  Any leftover mismatches between Understat’s team names and the CSV were patched, and the final array was saved as a JSON file to be used by D3.
-        </li>
-
-    </ul>
-
-    <p>Dumbell plots were created using data from both sources, position from Premier League Standings (1993–2024) to rank the teams in order and Goals, xG, Assists and xA metrics from Understat to display as dots. Haris Malik.</p>
-</section>
-
 <div id="heatmap-section">
     <div id="controls">
         <h4>Show teams:</h4>
@@ -455,6 +430,31 @@
         </div>
     </div>
 </div>
+
+<section class="data-processing">
+    <h2>Data Processing</h2>
+
+    <p>I used two primary sources to build these visualisations:</p>
+
+    <ul>
+        <li>
+            <strong><a href="https://www.kaggle.com/datasets/evangower/english-premier-league-standings" target="_blank">Premier League Standings (1993–2024)</a></strong>
+            – Loaded directly into D3 via `d3.csv`, with all fields (season_end_year, played, points, won, position) type-cast to numbers. The code filtered the table to seasons 2014–2024, then for each record calculated:
+            <ul>
+                <li><em>PPG</em> = points / games played</li>
+                <li><em>Win Ratio</em> = wins / games played</li>
+            </ul>
+            Teams were grouped by rows, each team expanded to a complete 2014–24 series (inserting zeros for missing years), and team’s average PPG calculated for both the colour scale and the sort dropdown.
+        </li>
+        <li>
+            <strong><a href="https://understat.com/" target="_blank">xG, Goals &amp; xA, Assists Data (2014–2024)</a></strong>
+            – I created a Node.js script that fetched Understat’s EPL pages for each season (2014–23), extracted the embedded `teamsData` and each club’s `playersData` JSON blobs, then for each club summed every player’s goals, xG, assists and xA into per-team totals (rounded to two decimals).  Any leftover mismatches between Understat’s team names and the CSV were patched, and the final array was saved as a JSON file to be used by D3.
+        </li>
+
+    </ul>
+
+    <p>Dumbell plots were created using data from both sources, position from Premier League Standings (1993–2024) to rank the teams in order and Goals, xG, Assists and xA metrics from Understat to display as dots. Haris Malik.</p>
+</section>
 
 <script>
     function scrollMiniChartToMiddle(team) {
